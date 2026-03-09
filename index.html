@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔄</text></svg>">
+<title>年金機構 電子公文書変換ツール</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Segoe UI', 'Yu Gothic UI', 'Meiryo', sans-serif;
+  background: #f0f2f5;
+  min-height: 100vh;
+  color: #333;
+}
+
+.header {
+  background: #fff;
+  color: #2c3e5a;
+  padding: 16px 24px;
+  border-bottom: 3px solid #4a6785;
+}
+
+.header h1 { font-size: 20px; font-weight: 600; }
+
+.lead {
+  font-size: 14px; color: #555; line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ドロップゾーン */
+.drop-zone {
+  border: 3px dashed #4a6785;
+  border-radius: 16px;
+  padding: 60px 40px;
+  text-align: center;
+  background: white;
+  transition: all 0.3s;
+  cursor: pointer;
+  margin-bottom: 24px;
+}
+
+.drop-zone:hover, .drop-zone.drag-over {
+  background: #e8eef5;
+  border-color: #2c3e5a;
+  transform: scale(1.01);
+}
+
+.drop-zone .icon { font-size: 48px; margin-bottom: 16px; }
+.drop-zone .main-text { font-size: 20px; font-weight: 600; color: #2c3e5a; margin-bottom: 8px; }
+.drop-zone .sub-text { font-size: 14px; color: #666; margin-bottom: 16px; }
+
+.file-input-btn {
+  display: inline-block;
+  background: #4a6785;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.file-input-btn:hover { background: #2c3e5a; }
+#fileInput { display: none; }
+
+/* ステータス */
+.status {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: none;
+  font-size: 14px;
+}
+
+.status.loading { display: block; background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+.status.error   { display: block; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.status.success { display: block; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+
+/* 文書リスト */
+.doc-list { display: none; margin-bottom: 24px; }
+.doc-list h2 {
+  font-size: 16px; color: #2c3e5a; margin-bottom: 12px;
+  padding-bottom: 8px; border-bottom: 2px solid #4a6785;
+}
+
+.doc-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.doc-item:hover { background: #e8eef5; border-color: #4a6785; }
+.doc-item.active {
+  background: #dce4ed; border-color: #2c3e5a;
+  box-shadow: 0 0 0 2px rgba(74, 103, 133, 0.3);
+}
+
+.doc-item .doc-icon { font-size: 24px; flex-shrink: 0; }
+.doc-item .doc-info { flex: 1; min-width: 0; }
+.doc-item .doc-name { font-weight: 600; font-size: 14px; word-break: break-all; }
+.doc-item .doc-path { font-size: 12px; color: #888; word-break: break-all; }
+.doc-item .doc-badge {
+  font-size: 11px; background: #e8eef5; color: #2c3e5a;
+  padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+
+/* ビューワー */
+.viewer {
+  display: none;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.viewer-toolbar {
+  background: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.viewer-toolbar .doc-title {
+  font-weight: 600; font-size: 14px;
+  flex: 1; min-width: 0; word-break: break-all;
+}
+
+.toolbar-btn {
+  background: #4a6785; color: white; border: none;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer;
+  font-size: 13px; transition: background 0.2s;
+}
+
+.toolbar-btn:hover { background: #2c3e5a; }
+.toolbar-btn.secondary { background: #6c757d; }
+.toolbar-btn.secondary:hover { background: #545b62; }
+
+.viewer-content {
+  padding: 24px;
+  overflow: auto;
+  max-height: 80vh;
+}
+
+/* XSLT変換後の表示調整 */
+.viewer-content table { border-collapse: collapse; width: 100%; }
+.viewer-content td, .viewer-content th {
+  border: 1px solid #999; padding: 4px 8px; font-size: 13px;
+}
+.viewer-content th { background: #f0f0f0; }
+
+/* XML生データ表示 */
+.xml-raw {
+  white-space: pre-wrap; word-break: break-all;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px; background: #f8f9fa;
+  padding: 16px; border-radius: 4px;
+  max-height: 70vh; overflow: auto;
+}
+
+.link-notice {
+  background: #e8eef5; border: 1px solid #4a6785;
+  padding: 10px 14px; border-radius: 6px; margin-bottom: 12px;
+  font-size: 13px; color: #2c3e5a;
+}
+
+.xslt-error {
+  background: #fff3cd; border: 1px solid #ffc107;
+  padding: 12px; border-radius: 6px; margin-bottom: 12px;
+  font-size: 13px; color: #856404;
+}
+
+.footer {
+  text-align: center; padding: 16px; color: #999; font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>&#x1f504; 年金機構 電子公文書変換ツール</h1>
+  </div>
+</div>
+
+<div class="container">
+  <p class="lead">年金機構から届く電子公文書（ZIP形式）をブラウザ上で閲覧できます。<br>
+    XML と XSL を自動で検出し、XSLT 変換して表示します。すべての処理はブラウザ内で完結し、ファイルが外部に送信されることはありません。</p>
+
+  <div class="drop-zone" id="dropZone">
+    <div class="icon">&#x1f4e6;</div>
+    <div class="main-text">電子公文書のZIPファイルをドラッグ＆ドロップ</div>
+    <div class="sub-text">
+      クリックしてファイルを選択することもできます
+    </div>
+    <label class="file-input-btn" for="fileInput">ファイルを選択</label>
+    <input type="file" id="fileInput" accept=".zip">
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="doc-list" id="docList">
+    <h2>&#x1f4cb; 文書一覧</h2>
+    <div id="docItems"></div>
+  </div>
+
+  <div class="viewer" id="viewer">
+    <div class="viewer-toolbar">
+      <span class="doc-title" id="viewerTitle"></span>
+      <button class="toolbar-btn secondary" id="toggleBtn" onclick="toggleRawXml()">XML表示</button>
+      <button class="toolbar-btn" onclick="printDoc()">&#x1f5a8;&#xfe0f; 印刷</button>
+    </div>
+    <div class="viewer-content" id="viewerContent"></div>
+  </div>
+</div>
+
+<div class="footer">
+  &#x1f512; すべての処理はブラウザ内で完結します。ファイルは外部に送信されません。<br>
+  本ツールは個人が開発した非公式ツールであり、日本年金機構とは無関係です。内容の正確性は保証しません。自己責任でご利用ください。
+</div>
+
+<script>
+'use strict';
+
+// --- ZIP Parser (DecompressionStream) ---
+
+function decodeName(nameBytes, gpFlag) {
+  var encoding = (gpFlag & 0x0800) ? 'utf-8' : 'shift_jis';
+  return new TextDecoder(encoding).decode(nameBytes);
+}
+
+async function decompressEntry(entry, buffer) {
+  var raw = new Uint8Array(buffer, entry.dataOffset, entry.compSize);
+
+  if (entry.method === 0) {
+    // Stored: コピーして返す
+    return raw.slice().buffer;
+  }
+
+  if (entry.method === 8) {
+    // Deflated: DecompressionStream で解凍
+    var ds = new DecompressionStream('deflate-raw');
+    var writer = ds.writable.getWriter();
+    writer.write(raw);
+    writer.close();
+
+    var reader = ds.readable.getReader();
+    var chunks = [];
+    var totalLen = 0;
+    while (true) {
+      var result = await reader.read();
+      if (result.done) break;
+      chunks.push(result.value);
+      totalLen += result.value.byteLength;
+    }
+
+    var out = new Uint8Array(totalLen);
+    var pos = 0;
+    for (var i = 0; i < chunks.length; i++) {
+      out.set(chunks[i], pos);
+      pos += chunks[i].byteLength;
+    }
+    return out.buffer;
+  }
+
+  throw new Error('未対応の圧縮方式: ' + entry.method);
+}
+
+function parseCentralDirectory(buffer) {
+  var view = new DataView(buffer);
+  var map = {};
+
+  // EOCD を末尾から逆検索（最大65KB+22バイト）
+  var searchStart = Math.max(0, buffer.byteLength - 65557);
+  var eocdOffset = -1;
+  for (var i = buffer.byteLength - 22; i >= searchStart; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset < 0) return map;
+
+  var cdOffset = view.getUint32(eocdOffset + 16, true);
+  var cdSize = view.getUint32(eocdOffset + 12, true);
+  var pos = cdOffset;
+  var cdEnd = cdOffset + cdSize;
+
+  while (pos < cdEnd && pos < buffer.byteLength - 46) {
+    if (view.getUint32(pos, true) !== 0x02014b50) break;
+
+    var gpFlag = view.getUint16(pos + 8, true);
+    var method = view.getUint16(pos + 10, true);
+    var compSize = view.getUint32(pos + 20, true);
+    var uncompSize = view.getUint32(pos + 24, true);
+    var nameLen = view.getUint16(pos + 28, true);
+    var extraLen = view.getUint16(pos + 30, true);
+    var commentLen = view.getUint16(pos + 32, true);
+
+    var nameBytes = new Uint8Array(buffer, pos + 46, nameLen);
+    var name = decodeName(nameBytes, gpFlag);
+
+    map[name] = { compSize: compSize, uncompSize: uncompSize, method: method };
+
+    pos += 46 + nameLen + extraLen + commentLen;
+  }
+
+  return map;
+}
+
+function parseZip(buffer) {
+  var view = new DataView(buffer);
+  var entries = [];
+  var offset = 0;
+  var centralDir = null;
+
+  while (offset < buffer.byteLength - 4) {
+    var sig = view.getUint32(offset, true);
+    if (sig !== 0x04034b50) break;
+
+    var gpFlag = view.getUint16(offset + 6, true);
+    var method = view.getUint16(offset + 8, true);
+    var compSize = view.getUint32(offset + 18, true);
+    var uncompSize = view.getUint32(offset + 22, true);
+    var nameLen = view.getUint16(offset + 26, true);
+    var extraLen = view.getUint16(offset + 28, true);
+
+    var nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
+    var name = decodeName(nameBytes, gpFlag);
+
+    var dataOffset = offset + 30 + nameLen + extraLen;
+
+    // Data Descriptor 対応: compSize が 0 なら Central Directory から取得
+    var hasDataDescriptor = (gpFlag & 0x08) !== 0;
+    if (hasDataDescriptor && compSize === 0) {
+      if (!centralDir) centralDir = parseCentralDirectory(buffer);
+      var cdEntry = centralDir[name];
+      if (cdEntry) {
+        compSize = cdEntry.compSize;
+        uncompSize = cdEntry.uncompSize;
+      }
+    }
+
+    var isDir = name.endsWith('/');
+
+    if (!isDir) {
+      entries.push({
+        name: name,
+        method: method,
+        compSize: compSize,
+        uncompSize: uncompSize,
+        dataOffset: dataOffset,
+        isDir: false
+      });
+    }
+
+    // 次のエントリへ
+    var nextOffset = dataOffset + compSize;
+    if (hasDataDescriptor) {
+      // Data Descriptor をスキップ
+      if (nextOffset + 4 <= buffer.byteLength && view.getUint32(nextOffset, true) === 0x08074b50) {
+        nextOffset += 16;
+      } else {
+        nextOffset += 12;
+      }
+    }
+    offset = nextOffset;
+  }
+
+  return entries;
+}
+
+async function readEntryAsText(entry, buffer) {
+  var ab = await decompressEntry(entry, buffer);
+  return new TextDecoder('utf-8').decode(ab);
+}
+
+// --- State ---
+let documents = [];
+let currentDocIndex = -1;
+let showingRaw = false;
+
+// --- DOM ---
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+const docListEl = document.getElementById('docList');
+const docItemsEl = document.getElementById('docItems');
+const viewerEl = document.getElementById('viewer');
+const viewerTitle = document.getElementById('viewerTitle');
+const viewerContent = document.getElementById('viewerContent');
+const toggleBtn = document.getElementById('toggleBtn');
+
+// --- Drag & Drop ---
+dropZone.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', function() {
+  dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  var file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+
+dropZone.addEventListener('click', function(e) {
+  if (e.target.tagName !== 'LABEL') fileInput.click();
+});
+
+fileInput.addEventListener('change', function() {
+  if (fileInput.files[0]) processFile(fileInput.files[0]);
+});
+
+// --- Status ---
+function setStatus(type, msg) {
+  statusEl.className = 'status ' + type;
+  statusEl.textContent = msg;
+}
+
+// --- ZIP Processing ---
+async function processFile(file) {
+  if (!file.name.toLowerCase().endsWith('.zip')) {
+    setStatus('error', 'ZIPファイルを選択してください。');
+    return;
+  }
+
+  documents = [];
+  currentDocIndex = -1;
+  showingRaw = false;
+  docListEl.style.display = 'none';
+  viewerEl.style.display = 'none';
+  setStatus('loading', '処理中… ZIPファイルを読み込んでいます');
+
+  try {
+    var buf = await file.arrayBuffer();
+    var entries = parseZip(buf);
+    await extractDocuments(entries, buf, '');
+
+    if (documents.length === 0) {
+      setStatus('error', 'XML公文書が見つかりませんでした。');
+      return;
+    }
+
+    setStatus('success', documents.length + ' 件の公文書を検出しました。');
+    renderDocList();
+
+    // 1件なら自動表示
+    if (documents.length === 1) showDocument(0);
+  } catch (err) {
+    setStatus('error', 'エラー: ' + err.message);
+    console.error(err);
+  }
+}
+
+async function extractDocuments(entries, buffer, prefix) {
+  // ネストZIPを先に処理
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    if (entry.name.toLowerCase().endsWith('.zip')) {
+      try {
+        var data = await decompressEntry(entry, buffer);
+        var nestedEntries = parseZip(data);
+        await extractDocuments(nestedEntries, data, prefix + entry.name.replace(/\.zip$/i, '/'));
+      } catch (e) {
+        console.warn('ネストZIP処理失敗:', entry.name, e);
+      }
+    }
+  }
+
+  // ディレクトリ別にファイルを分類
+  var dirs = {};
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    if (entry.name.toLowerCase().endsWith('.zip')) continue;
+    var slash = entry.name.lastIndexOf('/');
+    var dir = slash >= 0 ? entry.name.substring(0, slash + 1) : '';
+    var name = slash >= 0 ? entry.name.substring(slash + 1) : entry.name;
+    if (!dirs[dir]) dirs[dir] = {};
+    dirs[dir][name] = entry;
+  }
+
+  // 各ディレクトリからXMLを抽出
+  for (var dir in dirs) {
+    var files = dirs[dir];
+
+    // XSLファイルを事前にロード
+    var xslTexts = {};
+    for (var name in files) {
+      var lower = name.toLowerCase();
+      if (lower.endsWith('.xsl') || lower.endsWith('.xslt')) {
+        xslTexts[name] = await readEntryAsText(files[name], buffer);
+      }
+    }
+
+    // XMLファイルを処理
+    for (var name in files) {
+      if (!name.toLowerCase().endsWith('.xml')) continue;
+
+      var xmlText = await readEntryAsText(files[name], buffer);
+      var xslRef = findXslReference(xmlText);
+
+      // 表示用ラベルを決定
+      var label = name;
+      var docType = '';
+
+      if (/[^\x00-\x7F]/.test(name)) {
+        // 日本語名XMLの場合
+        label = name.replace(/\([^)]*\)\.xml$/i, '');
+        docType = '詳細';
+      } else {
+        // 数字名XMLの場合は送付案内（鏡文書）
+        docType = '送付案内';
+      }
+
+      // XSLを解決
+      var xslText = null;
+      var xslName = null;
+
+      if (xslRef && xslTexts[xslRef]) {
+        xslText = xslTexts[xslRef];
+        xslName = xslRef;
+      }
+
+      // XSL内のimport/includeを解決
+      var resolvedXsl = xslText ? resolveXslImports(xslText, xslTexts, 0) : null;
+
+      documents.push({
+        name: name,
+        label: label,
+        docType: docType,
+        dirPath: prefix + dir,
+        xmlText: xmlText,
+        xslText: resolvedXsl,
+        xslName: xslName
+      });
+    }
+  }
+}
+
+function findXslReference(xmlText) {
+  var m = xmlText.match(/<\?xml-stylesheet[^?]*href=["']([^"']+)["'][^?]*\?>/);
+  return m ? m[1] : null;
+}
+
+/**
+ * XSL内の xsl:import / xsl:include を同ディレクトリのXSLで解決する。
+ * ブラウザのXSLTProcessorは相対パスを解決できないため、DOMレベルでインライン化する。
+ */
+function resolveXslImports(xslText, xslTexts, depth) {
+  if (depth > 5) return xslText;
+
+  var parser = new DOMParser();
+  var serializer = new XMLSerializer();
+  var xslDoc = parser.parseFromString(xslText, 'application/xml');
+
+  if (xslDoc.querySelector('parsererror')) return xslText;
+
+  var XSLNS = 'http://www.w3.org/1999/XSL/Transform';
+  var root = xslDoc.documentElement;
+
+  // querySelectorは名前空間を無視するので、getElementsByTagNameNS を使う
+  var imports = Array.from(root.getElementsByTagNameNS(XSLNS, 'import'));
+  var includes = Array.from(root.getElementsByTagNameNS(XSLNS, 'include'));
+  var allRefs = imports.concat(includes);
+
+  if (allRefs.length === 0) return xslText;
+
+  allRefs.forEach(function(refNode) {
+    var href = refNode.getAttribute('href');
+    var importedText = href ? xslTexts[href] : null;
+
+    if (!importedText) {
+      // 参照先が見つからない場合はノードを削除
+      refNode.parentNode.removeChild(refNode);
+      return;
+    }
+
+    // 再帰的に解決
+    var resolvedText = resolveXslImports(importedText, xslTexts, depth + 1);
+    var importedDoc = parser.parseFromString(resolvedText, 'application/xml');
+
+    if (importedDoc.querySelector('parsererror')) {
+      refNode.parentNode.removeChild(refNode);
+      return;
+    }
+
+    var importedRoot = importedDoc.documentElement;
+
+    // インポート先の子要素を現在のXSLに移植
+    var children = Array.from(importedRoot.childNodes);
+    children.forEach(function(child) {
+      var imported = xslDoc.importNode(child, true);
+      root.insertBefore(imported, refNode);
+    });
+
+    // import/include ノードを削除
+    refNode.parentNode.removeChild(refNode);
+  });
+
+  return serializer.serializeToString(xslDoc);
+}
+
+// --- Document List ---
+function renderDocList() {
+  docItemsEl.innerHTML = '';
+  documents.forEach(function(doc, i) {
+    var item = document.createElement('div');
+    item.className = 'doc-item';
+    item.innerHTML =
+      '<div class="doc-icon">' + (doc.docType === '送付案内' ? '&#x1f4dc;' : '&#x1f4c4;') + '</div>' +
+      '<div class="doc-info">' +
+        '<div class="doc-name">' + esc(doc.label) + '</div>' +
+        '<div class="doc-path">' + esc(doc.dirPath || '(root)') +
+          (doc.xslName ? ' \u2014 ' + esc(doc.xslName) : '') + '</div>' +
+      '</div>' +
+      (doc.docType ? '<div class="doc-badge">' + esc(doc.docType) + '</div>' : '');
+    item.addEventListener('click', function() { showDocument(i); });
+    docItemsEl.appendChild(item);
+  });
+  docListEl.style.display = 'block';
+}
+
+// --- Document Viewer ---
+function showDocument(index) {
+  currentDocIndex = index;
+  showingRaw = false;
+  toggleBtn.textContent = 'XML表示';
+
+  var doc = documents[index];
+  viewerTitle.textContent = doc.label + (doc.docType ? ' (' + doc.docType + ')' : '');
+
+  // リストのアクティブ状態
+  var items = docItemsEl.querySelectorAll('.doc-item');
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('active', i === index);
+  }
+
+  renderTransformed(doc);
+  viewerEl.style.display = 'block';
+  viewerEl.scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderTransformed(doc) {
+  if (!doc.xslText) {
+    viewerContent.innerHTML =
+      '<div class="xslt-error">XSLスタイルシートが見つかりません。XMLを直接表示します。</div>' +
+      '<div class="xml-raw">' + esc(doc.xmlText) + '</div>';
+    return;
+  }
+
+  try {
+    var parser = new DOMParser();
+    var xmlDoc = parser.parseFromString(doc.xmlText, 'application/xml');
+    var xslDoc = parser.parseFromString(doc.xslText, 'application/xml');
+
+    var xmlErr = xmlDoc.querySelector('parsererror');
+    if (xmlErr) throw new Error('XMLパースエラー');
+
+    var xslErr = xslDoc.querySelector('parsererror');
+    if (xslErr) throw new Error('XSLパースエラー: ' + xslErr.textContent.substring(0, 200));
+
+    var proc = new XSLTProcessor();
+    proc.importStylesheet(xslDoc);
+
+    var resultDoc = proc.transformToDocument(xmlDoc);
+    if (!resultDoc || !resultDoc.documentElement) {
+      throw new Error('XSLT変換結果が空です');
+    }
+
+    var resultHtml = new XMLSerializer().serializeToString(resultDoc);
+
+    // XSLT出力が完全なHTMLドキュメントの場合、iframeで表示
+    viewerContent.innerHTML = '';
+    var iframe = document.createElement('iframe');
+    iframe.style.cssText = 'width:100%;border:none;min-height:600px;';
+    viewerContent.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(resultHtml);
+    iframe.contentDocument.close();
+
+    // 固定高さの外枠を自動高さに変換（内容はみ出し防止）
+    var fixStyle = iframe.contentDocument.createElement('style');
+    fixStyle.textContent =
+      '.outline { height: auto !important; }' +
+      'pre.normal { white-space: pre-wrap !important; line-height: 1.4 !important; }' +
+      'td[style*="line-height:13px"], td[style*="line-height:11px"], td[style*="line-height:12px"] { line-height: 1.4 !important; }';
+    iframe.contentDocument.head.appendChild(fixStyle);
+
+    // 送付案内の場合、文書内リンクを無効化して注意書きを表示
+    if (doc.docType === '送付案内') {
+      var links = iframe.contentDocument.querySelectorAll('a[href]');
+      if (links.length > 0) {
+        links.forEach(function(a) {
+          a.style.pointerEvents = 'none';
+          a.style.color = '#999';
+          a.style.textDecoration = 'none';
+          a.style.cursor = 'default';
+        });
+        var notice = document.createElement('div');
+        notice.className = 'link-notice';
+        notice.textContent = '文書内のXML・CSVリンクはこのビューワーでは動作しません';
+        viewerContent.insertBefore(notice, iframe);
+      }
+    }
+
+    // iframeの高さを内容に合わせて自動調整
+    iframe.onload = function() {
+      try {
+        var h = iframe.contentDocument.documentElement.scrollHeight;
+        iframe.style.height = Math.max(h + 20, 200) + 'px';
+      } catch(e) {}
+    };
+    // onloadが発火しない場合のフォールバック
+    setTimeout(function() {
+      try {
+        var h = iframe.contentDocument.documentElement.scrollHeight;
+        iframe.style.height = Math.max(h + 20, 200) + 'px';
+      } catch(e) {}
+    }, 200);
+  } catch (e) {
+    console.warn('XSLT変換失敗:', e);
+    viewerContent.innerHTML =
+      '<div class="xslt-error">XSLT変換に失敗しました: ' + esc(e.message) + '<br>XMLを直接表示します。</div>' +
+      '<div class="xml-raw">' + esc(doc.xmlText) + '</div>';
+  }
+}
+
+function toggleRawXml() {
+  if (currentDocIndex < 0) return;
+  showingRaw = !showingRaw;
+  var doc = documents[currentDocIndex];
+
+  if (showingRaw) {
+    toggleBtn.textContent = '変換表示';
+    viewerContent.innerHTML = '<div class="xml-raw">' + esc(doc.xmlText) + '</div>';
+  } else {
+    toggleBtn.textContent = 'XML表示';
+    renderTransformed(doc);
+  }
+}
+
+function printDoc() {
+  // iframe内のコンテンツを取得
+  var iframe = viewerContent.querySelector('iframe');
+  var originalStyles = '';
+  var content;
+
+  if (iframe && iframe.contentDocument) {
+    var headEls = iframe.contentDocument.querySelectorAll('style');
+    headEls.forEach(function(s) { originalStyles += s.outerHTML; });
+    content = iframe.contentDocument.body.innerHTML;
+  } else {
+    content = viewerContent.innerHTML;
+  }
+
+  var w = window.open('', '_blank');
+  w.document.write(
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>印刷</title>' +
+    originalStyles +
+    '<style>' +
+    'body { font-family: "Yu Gothic", "Meiryo", sans-serif; margin: 0; padding: 0; }' +
+    '</style>' +
+    '</head><body>' + content + '</body></html>'
+  );
+  w.document.close();
+}
+
+function esc(text) {
+  var d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>

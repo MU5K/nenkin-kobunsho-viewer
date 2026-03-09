@@ -1,0 +1,43 @@
+# 改行コード統一設定（Windows/WSL/Mac混在環境対応）
+# すべてのテキストファイルをLFに統一
+
+# デフォルト: テキストファイルはLF
+* text=auto eol=lf
+
+# 明示的なテキストファイル（LF強制）
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.csv text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Git設定ファイル
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+
+# ドキュメント
+*.markdown text eol=lf
+README* text eol=lf
+CHANGELOG* text eol=lf
+LICENSE* text eol=lf
+
+# スクリプト
+*.sh text eol=lf
+*.bash text eol=lf
+*.ps1 text eol=lf
+
+# バイナリファイル（変換しない）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
