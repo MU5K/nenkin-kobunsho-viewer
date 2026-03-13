@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔄</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔄</text></svg>">
 <title>年金機構 電子公文書変換ツール</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -244,12 +244,12 @@ body {
 // --- ZIP Parser (DecompressionStream) ---
 
 function decodeName(nameBytes, gpFlag) {
-  var encoding = (gpFlag & 0x0800) ? 'utf-8' : 'shift_jis';
+  const encoding = (gpFlag & 0x0800) ? 'utf-8' : 'shift_jis';
   return new TextDecoder(encoding).decode(nameBytes);
 }
 
 async function decompressEntry(entry, buffer) {
-  var raw = new Uint8Array(buffer, entry.dataOffset, entry.compSize);
+  const raw = new Uint8Array(buffer, entry.dataOffset, entry.compSize);
 
   if (entry.method === 0) {
     // Stored: コピーして返す
@@ -258,24 +258,24 @@ async function decompressEntry(entry, buffer) {
 
   if (entry.method === 8) {
     // Deflated: DecompressionStream で解凍
-    var ds = new DecompressionStream('deflate-raw');
-    var writer = ds.writable.getWriter();
+    const ds = new DecompressionStream('deflate-raw');
+    const writer = ds.writable.getWriter();
     writer.write(raw);
     writer.close();
 
-    var reader = ds.readable.getReader();
-    var chunks = [];
-    var totalLen = 0;
+    const reader = ds.readable.getReader();
+    const chunks = [];
+    let totalLen = 0;
     while (true) {
-      var result = await reader.read();
+      const result = await reader.read();
       if (result.done) break;
       chunks.push(result.value);
       totalLen += result.value.byteLength;
     }
 
-    var out = new Uint8Array(totalLen);
-    var pos = 0;
-    for (var i = 0; i < chunks.length; i++) {
+    const out = new Uint8Array(totalLen);
+    let pos = 0;
+    for (let i = 0; i < chunks.length; i++) {
       out.set(chunks[i], pos);
       pos += chunks[i].byteLength;
     }
@@ -286,13 +286,13 @@ async function decompressEntry(entry, buffer) {
 }
 
 function parseCentralDirectory(buffer) {
-  var view = new DataView(buffer);
-  var map = {};
+  const view = new DataView(buffer);
+  const map = {};
 
   // EOCD を末尾から逆検索（最大65KB+22バイト）
-  var searchStart = Math.max(0, buffer.byteLength - 65557);
-  var eocdOffset = -1;
-  for (var i = buffer.byteLength - 22; i >= searchStart; i--) {
+  const searchStart = Math.max(0, buffer.byteLength - 65557);
+  let eocdOffset = -1;
+  for (let i = buffer.byteLength - 22; i >= searchStart; i--) {
     if (view.getUint32(i, true) === 0x06054b50) {
       eocdOffset = i;
       break;
@@ -300,24 +300,24 @@ function parseCentralDirectory(buffer) {
   }
   if (eocdOffset < 0) return map;
 
-  var cdOffset = view.getUint32(eocdOffset + 16, true);
-  var cdSize = view.getUint32(eocdOffset + 12, true);
-  var pos = cdOffset;
-  var cdEnd = cdOffset + cdSize;
+  const cdOffset = view.getUint32(eocdOffset + 16, true);
+  const cdSize = view.getUint32(eocdOffset + 12, true);
+  let pos = cdOffset;
+  const cdEnd = cdOffset + cdSize;
 
   while (pos < cdEnd && pos < buffer.byteLength - 46) {
     if (view.getUint32(pos, true) !== 0x02014b50) break;
 
-    var gpFlag = view.getUint16(pos + 8, true);
-    var method = view.getUint16(pos + 10, true);
-    var compSize = view.getUint32(pos + 20, true);
-    var uncompSize = view.getUint32(pos + 24, true);
-    var nameLen = view.getUint16(pos + 28, true);
-    var extraLen = view.getUint16(pos + 30, true);
-    var commentLen = view.getUint16(pos + 32, true);
+    const gpFlag = view.getUint16(pos + 8, true);
+    const method = view.getUint16(pos + 10, true);
+    const compSize = view.getUint32(pos + 20, true);
+    const uncompSize = view.getUint32(pos + 24, true);
+    const nameLen = view.getUint16(pos + 28, true);
+    const extraLen = view.getUint16(pos + 30, true);
+    const commentLen = view.getUint16(pos + 32, true);
 
-    var nameBytes = new Uint8Array(buffer, pos + 46, nameLen);
-    var name = decodeName(nameBytes, gpFlag);
+    const nameBytes = new Uint8Array(buffer, pos + 46, nameLen);
+    const name = decodeName(nameBytes, gpFlag);
 
     map[name] = { compSize: compSize, uncompSize: uncompSize, method: method };
 
@@ -328,39 +328,39 @@ function parseCentralDirectory(buffer) {
 }
 
 function parseZip(buffer) {
-  var view = new DataView(buffer);
-  var entries = [];
-  var offset = 0;
-  var centralDir = null;
+  const view = new DataView(buffer);
+  const entries = [];
+  let offset = 0;
+  let centralDir = null;
 
   while (offset < buffer.byteLength - 4) {
-    var sig = view.getUint32(offset, true);
+    const sig = view.getUint32(offset, true);
     if (sig !== 0x04034b50) break;
 
-    var gpFlag = view.getUint16(offset + 6, true);
-    var method = view.getUint16(offset + 8, true);
-    var compSize = view.getUint32(offset + 18, true);
-    var uncompSize = view.getUint32(offset + 22, true);
-    var nameLen = view.getUint16(offset + 26, true);
-    var extraLen = view.getUint16(offset + 28, true);
+    const gpFlag = view.getUint16(offset + 6, true);
+    const method = view.getUint16(offset + 8, true);
+    let compSize = view.getUint32(offset + 18, true);
+    let uncompSize = view.getUint32(offset + 22, true);
+    const nameLen = view.getUint16(offset + 26, true);
+    const extraLen = view.getUint16(offset + 28, true);
 
-    var nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
-    var name = decodeName(nameBytes, gpFlag);
+    const nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
+    const name = decodeName(nameBytes, gpFlag);
 
-    var dataOffset = offset + 30 + nameLen + extraLen;
+    const dataOffset = offset + 30 + nameLen + extraLen;
 
     // Data Descriptor 対応: compSize が 0 なら Central Directory から取得
-    var hasDataDescriptor = (gpFlag & 0x08) !== 0;
+    const hasDataDescriptor = (gpFlag & 0x08) !== 0;
     if (hasDataDescriptor && compSize === 0) {
       if (!centralDir) centralDir = parseCentralDirectory(buffer);
-      var cdEntry = centralDir[name];
+      const cdEntry = centralDir[name];
       if (cdEntry) {
         compSize = cdEntry.compSize;
         uncompSize = cdEntry.uncompSize;
       }
     }
 
-    var isDir = name.endsWith('/');
+    const isDir = name.endsWith('/');
 
     if (!isDir) {
       entries.push({
@@ -374,7 +374,7 @@ function parseZip(buffer) {
     }
 
     // 次のエントリへ
-    var nextOffset = dataOffset + compSize;
+    let nextOffset = dataOffset + compSize;
     if (hasDataDescriptor) {
       // Data Descriptor をスキップ
       if (nextOffset + 4 <= buffer.byteLength && view.getUint32(nextOffset, true) === 0x08074b50) {
@@ -390,7 +390,7 @@ function parseZip(buffer) {
 }
 
 async function readEntryAsText(entry, buffer) {
-  var ab = await decompressEntry(entry, buffer);
+  const ab = await decompressEntry(entry, buffer);
   return new TextDecoder('utf-8').decode(ab);
 }
 
@@ -423,7 +423,7 @@ dropZone.addEventListener('dragleave', function() {
 dropZone.addEventListener('drop', function(e) {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
-  var file = e.dataTransfer.files[0];
+  const file = e.dataTransfer.files[0];
   if (file) processFile(file);
 });
 
@@ -456,8 +456,8 @@ async function processFile(file) {
   setStatus('loading', '処理中… ZIPファイルを読み込んでいます');
 
   try {
-    var buf = await file.arrayBuffer();
-    var entries = parseZip(buf);
+    const buf = await file.arrayBuffer();
+    const entries = parseZip(buf);
     await extractDocuments(entries, buf, '');
 
     if (documents.length === 0) {
@@ -478,12 +478,12 @@ async function processFile(file) {
 
 async function extractDocuments(entries, buffer, prefix) {
   // ネストZIPを先に処理
-  for (var i = 0; i < entries.length; i++) {
-    var entry = entries[i];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
     if (entry.name.toLowerCase().endsWith('.zip')) {
       try {
-        var data = await decompressEntry(entry, buffer);
-        var nestedEntries = parseZip(data);
+        const data = await decompressEntry(entry, buffer);
+        const nestedEntries = parseZip(data);
         await extractDocuments(nestedEntries, data, prefix + entry.name.replace(/\.zip$/i, '/'));
       } catch (e) {
         console.warn('ネストZIP処理失敗:', entry.name, e);
@@ -492,40 +492,40 @@ async function extractDocuments(entries, buffer, prefix) {
   }
 
   // ディレクトリ別にファイルを分類
-  var dirs = {};
-  for (var i = 0; i < entries.length; i++) {
-    var entry = entries[i];
+  const dirs = {};
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
     if (entry.name.toLowerCase().endsWith('.zip')) continue;
-    var slash = entry.name.lastIndexOf('/');
-    var dir = slash >= 0 ? entry.name.substring(0, slash + 1) : '';
-    var name = slash >= 0 ? entry.name.substring(slash + 1) : entry.name;
+    const slash = entry.name.lastIndexOf('/');
+    const dir = slash >= 0 ? entry.name.substring(0, slash + 1) : '';
+    const name = slash >= 0 ? entry.name.substring(slash + 1) : entry.name;
     if (!dirs[dir]) dirs[dir] = {};
     dirs[dir][name] = entry;
   }
 
   // 各ディレクトリからXMLを抽出
-  for (var dir in dirs) {
-    var files = dirs[dir];
+  for (const dir in dirs) {
+    const files = dirs[dir];
 
     // XSLファイルを事前にロード
-    var xslTexts = {};
-    for (var name in files) {
-      var lower = name.toLowerCase();
+    const xslTexts = {};
+    for (const name in files) {
+      const lower = name.toLowerCase();
       if (lower.endsWith('.xsl') || lower.endsWith('.xslt')) {
         xslTexts[name] = await readEntryAsText(files[name], buffer);
       }
     }
 
     // XMLファイルを処理
-    for (var name in files) {
+    for (const name in files) {
       if (!name.toLowerCase().endsWith('.xml')) continue;
 
-      var xmlText = await readEntryAsText(files[name], buffer);
-      var xslRef = findXslReference(xmlText);
+      const xmlText = await readEntryAsText(files[name], buffer);
+      const xslRef = findXslReference(xmlText);
 
       // 表示用ラベルを決定
-      var label = name;
-      var docType = '';
+      let label = name;
+      let docType = '';
 
       if (/[^\x00-\x7F]/.test(name)) {
         // 日本語名XMLの場合
@@ -537,8 +537,8 @@ async function extractDocuments(entries, buffer, prefix) {
       }
 
       // XSLを解決
-      var xslText = null;
-      var xslName = null;
+      let xslText = null;
+      let xslName = null;
 
       if (xslRef && xslTexts[xslRef]) {
         xslText = xslTexts[xslRef];
@@ -546,7 +546,7 @@ async function extractDocuments(entries, buffer, prefix) {
       }
 
       // XSL内のimport/includeを解決
-      var resolvedXsl = xslText ? resolveXslImports(xslText, xslTexts, 0) : null;
+      const resolvedXsl = xslText ? resolveXslImports(xslText, xslTexts, 0) : null;
 
       documents.push({
         name: name,
@@ -555,14 +555,14 @@ async function extractDocuments(entries, buffer, prefix) {
         dirPath: prefix + dir,
         xmlText: xmlText,
         xslText: resolvedXsl,
-        xslName: xslName
+        xslName: xslName,
       });
     }
   }
 }
 
 function findXslReference(xmlText) {
-  var m = xmlText.match(/<\?xml-stylesheet[^?]*href=["']([^"']+)["'][^?]*\?>/);
+  const m = xmlText.match(/<\?xml-stylesheet[^?]*href=["']([^"']+)["'][^?]*\?>/);
   return m ? m[1] : null;
 }
 
@@ -573,25 +573,25 @@ function findXslReference(xmlText) {
 function resolveXslImports(xslText, xslTexts, depth) {
   if (depth > 5) return xslText;
 
-  var parser = new DOMParser();
-  var serializer = new XMLSerializer();
-  var xslDoc = parser.parseFromString(xslText, 'application/xml');
+  const parser = new DOMParser();
+  const serializer = new XMLSerializer();
+  const xslDoc = parser.parseFromString(xslText, 'application/xml');
 
   if (xslDoc.querySelector('parsererror')) return xslText;
 
-  var XSLNS = 'http://www.w3.org/1999/XSL/Transform';
-  var root = xslDoc.documentElement;
+  const XSLNS = 'http://www.w3.org/1999/XSL/Transform';
+  const root = xslDoc.documentElement;
 
   // querySelectorは名前空間を無視するので、getElementsByTagNameNS を使う
-  var imports = Array.from(root.getElementsByTagNameNS(XSLNS, 'import'));
-  var includes = Array.from(root.getElementsByTagNameNS(XSLNS, 'include'));
-  var allRefs = imports.concat(includes);
+  const imports = Array.from(root.getElementsByTagNameNS(XSLNS, 'import'));
+  const includes = Array.from(root.getElementsByTagNameNS(XSLNS, 'include'));
+  const allRefs = imports.concat(includes);
 
   if (allRefs.length === 0) return xslText;
 
   allRefs.forEach(function(refNode) {
-    var href = refNode.getAttribute('href');
-    var importedText = href ? xslTexts[href] : null;
+    const href = refNode.getAttribute('href');
+    const importedText = href ? xslTexts[href] : null;
 
     if (!importedText) {
       // 参照先が見つからない場合はノードを削除
@@ -600,20 +600,20 @@ function resolveXslImports(xslText, xslTexts, depth) {
     }
 
     // 再帰的に解決
-    var resolvedText = resolveXslImports(importedText, xslTexts, depth + 1);
-    var importedDoc = parser.parseFromString(resolvedText, 'application/xml');
+    const resolvedText = resolveXslImports(importedText, xslTexts, depth + 1);
+    const importedDoc = parser.parseFromString(resolvedText, 'application/xml');
 
     if (importedDoc.querySelector('parsererror')) {
       refNode.parentNode.removeChild(refNode);
       return;
     }
 
-    var importedRoot = importedDoc.documentElement;
+    const importedRoot = importedDoc.documentElement;
 
     // インポート先の子要素を現在のXSLに移植
-    var children = Array.from(importedRoot.childNodes);
+    const children = Array.from(importedRoot.childNodes);
     children.forEach(function(child) {
-      var imported = xslDoc.importNode(child, true);
+      const imported = xslDoc.importNode(child, true);
       root.insertBefore(imported, refNode);
     });
 
@@ -628,7 +628,7 @@ function resolveXslImports(xslText, xslTexts, depth) {
 function renderDocList() {
   docItemsEl.innerHTML = '';
   documents.forEach(function(doc, i) {
-    var item = document.createElement('div');
+    const item = document.createElement('div');
     item.className = 'doc-item';
     item.innerHTML =
       '<div class="doc-icon">' + (doc.docType === '送付案内' ? '&#x1f4dc;' : '&#x1f4c4;') + '</div>' +
@@ -650,12 +650,12 @@ function showDocument(index) {
   showingRaw = false;
   toggleBtn.textContent = 'XML表示';
 
-  var doc = documents[index];
+  const doc = documents[index];
   viewerTitle.textContent = doc.label + (doc.docType ? ' (' + doc.docType + ')' : '');
 
   // リストのアクティブ状態
-  var items = docItemsEl.querySelectorAll('.doc-item');
-  for (var i = 0; i < items.length; i++) {
+  const items = docItemsEl.querySelectorAll('.doc-item');
+  for (let i = 0; i < items.length; i++) {
     items[i].classList.toggle('active', i === index);
   }
 
@@ -673,29 +673,29 @@ function renderTransformed(doc) {
   }
 
   try {
-    var parser = new DOMParser();
-    var xmlDoc = parser.parseFromString(doc.xmlText, 'application/xml');
-    var xslDoc = parser.parseFromString(doc.xslText, 'application/xml');
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(doc.xmlText, 'application/xml');
+    const xslDoc = parser.parseFromString(doc.xslText, 'application/xml');
 
-    var xmlErr = xmlDoc.querySelector('parsererror');
+    const xmlErr = xmlDoc.querySelector('parsererror');
     if (xmlErr) throw new Error('XMLパースエラー');
 
-    var xslErr = xslDoc.querySelector('parsererror');
+    const xslErr = xslDoc.querySelector('parsererror');
     if (xslErr) throw new Error('XSLパースエラー: ' + xslErr.textContent.substring(0, 200));
 
-    var proc = new XSLTProcessor();
+    const proc = new XSLTProcessor();
     proc.importStylesheet(xslDoc);
 
-    var resultDoc = proc.transformToDocument(xmlDoc);
+    const resultDoc = proc.transformToDocument(xmlDoc);
     if (!resultDoc || !resultDoc.documentElement) {
       throw new Error('XSLT変換結果が空です');
     }
 
-    var resultHtml = new XMLSerializer().serializeToString(resultDoc);
+    const resultHtml = new XMLSerializer().serializeToString(resultDoc);
 
     // XSLT出力が完全なHTMLドキュメントの場合、iframeで表示
     viewerContent.innerHTML = '';
-    var iframe = document.createElement('iframe');
+    const iframe = document.createElement('iframe');
     iframe.style.cssText = 'width:100%;border:none;min-height:600px;';
     viewerContent.appendChild(iframe);
     iframe.contentDocument.open();
@@ -703,16 +703,16 @@ function renderTransformed(doc) {
     iframe.contentDocument.close();
 
     // 固定高さの外枠を自動高さに変換（内容はみ出し防止）
-    var fixStyle = iframe.contentDocument.createElement('style');
+    const fixStyle = iframe.contentDocument.createElement('style');
     fixStyle.textContent =
-      '.outline { height: auto !important; }' +
+      '.outline { min-height: 0 !important; }' +
       'pre.normal { white-space: pre-wrap !important; line-height: 1.4 !important; }' +
       'td[style*="line-height:13px"], td[style*="line-height:11px"], td[style*="line-height:12px"] { line-height: 1.4 !important; }';
     iframe.contentDocument.head.appendChild(fixStyle);
 
     // 送付案内の場合、文書内リンクを無効化して注意書きを表示
     if (doc.docType === '送付案内') {
-      var links = iframe.contentDocument.querySelectorAll('a[href]');
+      const links = iframe.contentDocument.querySelectorAll('a[href]');
       if (links.length > 0) {
         links.forEach(function(a) {
           a.style.pointerEvents = 'none';
@@ -720,7 +720,7 @@ function renderTransformed(doc) {
           a.style.textDecoration = 'none';
           a.style.cursor = 'default';
         });
-        var notice = document.createElement('div');
+        const notice = document.createElement('div');
         notice.className = 'link-notice';
         notice.textContent = '文書内のXML・CSVリンクはこのビューワーでは動作しません';
         viewerContent.insertBefore(notice, iframe);
@@ -730,14 +730,14 @@ function renderTransformed(doc) {
     // iframeの高さを内容に合わせて自動調整
     iframe.onload = function() {
       try {
-        var h = iframe.contentDocument.documentElement.scrollHeight;
+        const h = iframe.contentDocument.documentElement.scrollHeight;
         iframe.style.height = Math.max(h + 20, 200) + 'px';
       } catch(e) {}
     };
     // onloadが発火しない場合のフォールバック
     setTimeout(function() {
       try {
-        var h = iframe.contentDocument.documentElement.scrollHeight;
+        const h = iframe.contentDocument.documentElement.scrollHeight;
         iframe.style.height = Math.max(h + 20, 200) + 'px';
       } catch(e) {}
     }, 200);
@@ -752,7 +752,7 @@ function renderTransformed(doc) {
 function toggleRawXml() {
   if (currentDocIndex < 0) return;
   showingRaw = !showingRaw;
-  var doc = documents[currentDocIndex];
+  const doc = documents[currentDocIndex];
 
   if (showingRaw) {
     toggleBtn.textContent = '変換表示';
@@ -765,19 +765,19 @@ function toggleRawXml() {
 
 function printDoc() {
   // iframe内のコンテンツを取得
-  var iframe = viewerContent.querySelector('iframe');
-  var originalStyles = '';
-  var content;
+  const iframe = viewerContent.querySelector('iframe');
+  let originalStyles = '';
+  let content;
 
   if (iframe && iframe.contentDocument) {
-    var headEls = iframe.contentDocument.querySelectorAll('style');
+    const headEls = iframe.contentDocument.querySelectorAll('style');
     headEls.forEach(function(s) { originalStyles += s.outerHTML; });
     content = iframe.contentDocument.body.innerHTML;
   } else {
     content = viewerContent.innerHTML;
   }
 
-  var w = window.open('', '_blank');
+  const w = window.open('', '_blank');
   w.document.write(
     '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>印刷</title>' +
     originalStyles +
@@ -790,7 +790,7 @@ function printDoc() {
 }
 
 function esc(text) {
-  var d = document.createElement('div');
+  const d = document.createElement('div');
   d.textContent = text;
   return d.innerHTML;
 }
